@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>OK Exploded View — 3D</title>
+  <!-- Google model-viewer: тягне GLB/USDZ через fetch (content-type не важливий),
+       малює у браузері й дає AR: Scene Viewer (Android) / Quick Look (iOS). -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #eceff1; font-family: system-ui, sans-serif; }
+    model-viewer { width: 100%; height: 100%; --poster-color: #eceff1; }
+    #msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+           text-align: center; color: #607d8b; padding: 24px; font-size: 15px; }
+    #ar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+          background: #1565c0; color: #fff; border: none; border-radius: 24px;
+          padding: 12px 22px; font-size: 15px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+    #ar[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <model-viewer id="mv" camera-controls auto-rotate shadow-intensity="1"
+    ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto"
+    environment-image="neutral" exposure="1" alt="3D модель">
+    <button id="ar" slot="ar-button">Переглянути в AR</button>
+  </model-viewer>
+  <div id="msg"></div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const mv = document.getElementById('mv');
+    const msg = document.getElementById('msg');
+    const glb = q.get('glb') || q.get('src');
+    const usdz = q.get('usdz') || q.get('ios');
+    function show(t) { msg.textContent = t; msg.style.display = 'flex'; }
+    if (glb) mv.src = glb;
+    if (usdz) mv.setAttribute('ios-src', usdz);
+    if (!glb && !usdz) show('Немає посилання на модель (?glb=…).');
+    mv.addEventListener('error', () => show('Не вдалося завантажити модель. Перевірте посилання.'));
+    // AR-кнопку показуємо лише якщо платформа підтримує AR.
+    mv.addEventListener('ar-status', (e) => {
+      if (e.detail.status === 'failed') show('AR недоступний на цьому пристрої — модель показано у 3D.');
+    });
+  </script>
+</body>
+</html>
