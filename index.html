@@ -4,6 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>OK Exploded View — 3D</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <!-- Прев'ю посилання у месенджерах/соцмережах (Open Graph + Twitter). -->
+  <meta property="og:title" content="OK Exploded View — 3D / AR">
+  <meta property="og:description" content="Перегляд 3D-моделі та доповнена реальність">
+  <meta property="og:image" content="https://okpluginsforsketchup.github.io/ar-viewer/baner.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://okpluginsforsketchup.github.io/ar-viewer/baner.png">
   <!-- Google model-viewer (вкладено локально, без зовнішнього CDN): тягне GLB/USDZ через
        fetch (content-type не важливий), малює у браузері й дає AR (Scene Viewer / Quick Look). -->
   <script type="module" src="./model-viewer.min.js"></script>
@@ -16,19 +24,47 @@
           background: #1565c0; color: #fff; border: none; border-radius: 24px;
           padding: 12px 22px; font-size: 15px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
     #ar[hidden] { display: none; }
+    /* Повзунок прозорості (лише онлайн-3D, не AR) */
+    #opacity-panel { position: absolute; top: 14px; left: 14px; display: none;
+          align-items: center; gap: 8px; background: rgba(255,255,255,.85);
+          border-radius: 22px; padding: 8px 14px; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+          backdrop-filter: blur(4px); font-size: 13px; color: #455a64; }
+    #opacity-panel label { user-select: none; }
+    #opacity { width: 130px; accent-color: #1565c0; }
+    /* Банер у правому нижньому куті → перехід на сайт */
+    #banner { position: absolute; right: 14px; bottom: 14px; z-index: 5;
+          box-shadow: 0 2px 10px rgba(0,0,0,.22); border-radius: 8px; overflow: hidden;
+          line-height: 0; transition: transform .12s ease; }
+    #banner:hover { transform: scale(1.03); }
+    #banner img { display: block; max-width: 180px; height: auto; }
+    @media (max-width: 600px) { #banner img { max-width: 120px; } #opacity { width: 100px; } }
   </style>
 </head>
 <body>
   <model-viewer id="mv" camera-controls auto-rotate shadow-intensity="1"
     ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto"
-    environment-image="neutral" exposure="1" alt="3D модель">
+    environment-image="neutral" tone-mapping="neutral" exposure="1.1" alt="3D модель">
     <button id="ar" slot="ar-button">Переглянути в AR</button>
   </model-viewer>
+
+  <div id="opacity-panel">
+    <label for="opacity">Прозорість</label>
+    <input id="opacity" type="range" min="0" max="100" value="100">
+  </div>
+
+  <a id="banner" href="https://sketchup.com.ua" target="_blank" rel="noopener"
+     title="sketchup.com.ua">
+    <img src="./logo.png" alt="sketchup.com.ua">
+  </a>
+
   <div id="msg"></div>
+
   <script>
     const q = new URLSearchParams(location.search);
     const mv = document.getElementById('mv');
     const msg = document.getElementById('msg');
+    const opacityPanel = document.getElementById('opacity-panel');
+    const opacity = document.getElementById('opacity');
     const glb = q.get('glb') || q.get('src');
     const usdz = q.get('usdz') || q.get('ios');
     function show(t) { msg.textContent = t; msg.style.display = 'flex'; }
@@ -40,6 +76,33 @@
     mv.addEventListener('ar-status', (e) => {
       if (e.detail.status === 'failed') show('AR недоступний на цьому пристрої — модель показано у 3D.');
     });
+
+    // Прозорість через scene-graph API model-viewer. Працює лише в онлайн-3D
+    // (в AR телефон рендерить файл напряму, повзунок туди не діє). Зберігаємо
+    // базовий baseColorFactor кожного матеріалу й множимо альфу на значення повзунка.
+    const origAlpha = new Map();
+    mv.addEventListener('load', () => {
+      const mats = mv.model && mv.model.materials;
+      if (!mats || !mats.length) return;
+      mats.forEach((m) => {
+        const f = m.pbrMetallicRoughness.baseColorFactor; // [r,g,b,a]
+        origAlpha.set(m, f[3]);
+      });
+      opacityPanel.style.display = 'flex';
+    });
+    function applyOpacity() {
+      const k = opacity.value / 100;
+      const mats = mv.model && mv.model.materials;
+      if (!mats) return;
+      mats.forEach((m) => {
+        const pbr = m.pbrMetallicRoughness;
+        const f = pbr.baseColorFactor;
+        const a = (origAlpha.has(m) ? origAlpha.get(m) : 1) * k;
+        m.setAlphaMode(a < 1 ? 'BLEND' : 'OPAQUE');
+        pbr.setBaseColorFactor([f[0], f[1], f[2], a]);
+      });
+    }
+    opacity.addEventListener('input', applyOpacity);
   </script>
 </body>
 </html>
